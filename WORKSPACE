@@ -4,7 +4,7 @@ http_archive(
     name = "bazel_features",
     sha256 = "0f23d75c7623d6dba1fd30513a94860447de87c8824570521fcc966eda3151c2",
     strip_prefix = "bazel_features-1.4.1",
-    url = "https://codeload.github.com/bazel-contrib/bazel_features/tar.gz/refs/tags/v1.4.1",
+    url = "https://github.com/bazel-contrib/bazel_features/archive/refs/tags/v1.4.1.tar.gz",
 )
 
 local_repository(
@@ -29,7 +29,10 @@ local_repository(
 
 http_file(
     name = "cmake_tar_gz",
-    urls = ["https://github.com/Kitware/CMake/releases/download/v3.23.1/cmake-3.23.1-macos-universal.tar.gz"],
+    urls = [
+        "https://cmake.org/files/v3.23/cmake-3.23.1-macos-universal.tar.gz",
+        "https://github.com/Kitware/CMake/releases/download/v3.23.1/cmake-3.23.1-macos-universal.tar.gz",
+    ],
     sha256 = "f794ed92ccb4e9b6619a77328f313497d7decf8fb7e047ba35a348b838e0e1e2",
 )
 
