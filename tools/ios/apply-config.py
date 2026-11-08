@@ -515,25 +515,26 @@ def ensure_feature_flags_file(repo_root):
     return True
 
 
-XCODE16_COMPAT_FILE = "submodules/MtProtoKit/Sources/PingFoundation.h"
-XCODE16_COMPAT_INCLUDE = "#include <sys/types.h>"
+XCODE16_COMPAT_FILES = (
+    "submodules/MtProtoKit/Sources/PingFoundation.h",
+    "submodules/MtProtoKit/Sources/PingFoundation.m",
+)
 
 
 def patch_xcode16_compat(repo_root):
-    """Xcode 16 SDK 里 sa_family_t 必须先通过 sys/types 模块可见，否则 MtProtoKit 编译失败。"""
-    path = os.path.join(repo_root, XCODE16_COMPAT_FILE)
-    with open(path, "r", encoding="utf-8") as handle:
-        text = handle.read()
-    if XCODE16_COMPAT_INCLUDE in text:
-        return "skipped"
-    anchor = "#import <Foundation/Foundation.h>\n"
-    if text.count(anchor) != 1:
-        raise RuntimeError("PingFoundation.h 中 Foundation 导入 %d 处，预期 1 处" % text.count(anchor))
-    # 必须放在 Foundation 之前：模块化编译下先引入 sys/types 才能让 sa_family_t 可见
-    text = XCODE16_COMPAT_INCLUDE + "\n\n" + text
-    with open(path, "w", encoding="utf-8", newline="\n") as handle:
-        handle.write(text)
-    return "patched"
+    """Xcode 16 的 Darwin 模块不再隐式暴露 sa_family_t，等价改用 uint8_t。"""
+    changed = []
+    for relative in XCODE16_COMPAT_FILES:
+        path = os.path.join(repo_root, relative)
+        with open(path, "r", encoding="utf-8") as handle:
+            text = handle.read()
+        text, count = re.subn(r"\bsa_family_t\b", "uint8_t", text)
+        if count == 0:
+            continue
+        with open(path, "w", encoding="utf-8", newline="\n") as handle:
+            handle.write(text)
+        changed.append({"file": relative, "count": count})
+    return changed if changed else "skipped"
 
 
 def patch_feature_flags(repo_root, features):
