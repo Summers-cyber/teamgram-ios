@@ -16,6 +16,19 @@ http_archive(
     url = "https://github.com/bazelbuild/bazel-skylib/archive/refs/tags/1.4.2.tar.gz",
 )
 
+# rules_swift 的 swift_runner 硬依赖 index-import（只在 index_while_building_v2 时使用），
+# 但仓库声明阶段就会去 GitHub releases 拉；预声明成 mirror.bazel.build 优先，绕开 504。
+http_archive(
+    name = "build_bazel_rules_swift_index_import",
+    build_file = "@build_bazel_rules_swift//third_party:build_bazel_rules_swift_index_import/BUILD.overlay",
+    canonical_id = "index-import-5.8",
+    sha256 = "28c1ffa39d99e74ed70623899b207b41f79214c498c603915aef55972a851a15",
+    urls = [
+        "https://mirror.bazel.build/github.com/MobileNativeFoundation/index-import/releases/download/5.8.0.1/index-import.tar.gz",
+        "https://github.com/MobileNativeFoundation/index-import/releases/download/5.8.0.1/index-import.tar.gz",
+    ],
+)
+
 local_repository(
     name = "rules_xcodeproj",
     path = "build-system/bazel-rules/rules_xcodeproj",
