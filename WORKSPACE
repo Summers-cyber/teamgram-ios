@@ -1,19 +1,15 @@
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive", "http_file")
 
-http_archive(
+# GitHub archive / releases CDN 在本 CI 里反复 502/504，两个核心依赖直接 vendor 进仓库，
+# 构建期零网络依赖（其余 releases 资产由 build-system/downloader.cfg 重写到 mirror.bazel.build）。
+local_repository(
     name = "bazel_features",
-    sha256 = "0f23d75c7623d6dba1fd30513a94860447de87c8824570521fcc966eda3151c2",
-    strip_prefix = "bazel_features-1.4.1",
-    url = "https://github.com/bazel-contrib/bazel_features/archive/refs/tags/v1.4.1.tar.gz",
+    path = "third-party/vendor/bazel_features-1.4.1",
 )
 
-# 预声明 bazel_skylib，走 GitHub archive（带 .tar.gz 后缀）而非 releases CDN，
-# 避免 rules_* 依赖里 GitHub release 资产的 504；后续 _maybe 声明会因已存在而跳过。
-http_archive(
+local_repository(
     name = "bazel_skylib",
-    sha256 = "de9d2cedea7103d20c93a5cc7763099728206bd5088342d0009315913a592cc0",
-    strip_prefix = "bazel-skylib-1.4.2",
-    url = "https://github.com/bazelbuild/bazel-skylib/archive/refs/tags/1.4.2.tar.gz",
+    path = "third-party/vendor/bazel-skylib-1.4.2",
 )
 
 # rules_swift 的 swift_runner 硬依赖 index-import（只在 index_while_building_v2 时使用），
