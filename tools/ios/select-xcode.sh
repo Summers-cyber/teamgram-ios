@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 在 macOS runner 上挑选一个 >= versions.json 要求的最老 Xcode，并设为默认。
+# 在 macOS runner 上挑选 Xcode：优先最新的 16.x（SDK 平台完整），否则取 >= versions.json 要求的最老版本。
 # 同时把 DEVELOPER_DIR / XCODE_VERSION 写进 GITHUB_ENV（本地运行时自动跳过）。
 set -euo pipefail
 
@@ -31,7 +31,13 @@ if not candidates:
     raise SystemExit("runner 上没有找到任何 /Applications/Xcode*.app")
 
 usable = [item for item in candidates if item[0] >= req]
-chosen = sorted(usable)[0] if usable else sorted(candidates)[-1]
+preferred = [item for item in usable if item[0][0] == 16]
+if preferred:
+    chosen = sorted(preferred)[-1]
+elif usable:
+    chosen = sorted(usable)[0]
+else:
+    chosen = sorted(candidates)[-1]
 print("%s|%s" % (chosen[1], chosen[2]))
 PY
 )"
