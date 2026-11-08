@@ -181,7 +181,8 @@ jobs:
     name: "L3 build: 未签名 IPA + xcarchive"
     needs: prepare
     if: github.event_name == 'push' || inputs.stage == 'build'
-    runs-on: macos-latest
+    # macos-14 上最老的可用 Xcode 是 15.4，可避开 Xcode 26 + Bazel 7.1 的 wrapped_clang LC_UUID 问题
+    runs-on: macos-14
     timeout-minutes: 355
     env:
       BAZEL_CACHE_DIR: ${{ github.workspace }}/build/bazel-cache
