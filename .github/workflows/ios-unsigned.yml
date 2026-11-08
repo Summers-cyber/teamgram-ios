@@ -255,7 +255,12 @@ jobs:
       - name: Fix script permissions
         shell: bash
         run: |
-          find submodules Telegram build-system tools -name '*.sh' -type f -exec chmod +x {} +
+          find submodules Telegram build-system tools \( -name '*.sh' -o -name '*.pl' -o -name '*.py' \) -type f -exec chmod +x {} +
+          # 无扩展名的辅助程序同样是 100644，genrule 里靠 `which` 找它们：
+          # pkg-config（configure 的 --pkg-config）、configure（ffmpeg 配置脚本）
+          chmod +x submodules/ffmpeg/Sources/FFMpeg/pkg-config \
+                   submodules/ffmpeg/Sources/FFMpeg/ffmpeg-4.1/configure
+          ls -l submodules/ffmpeg/Sources/FFMpeg/pkg-config submodules/ffmpeg/Sources/FFMpeg/gas-preprocessor.pl submodules/ffmpeg/Sources/FFMpeg/ffmpeg-4.1/configure
 
       - name: Build (Bazel, fake signing)
         shell: bash
