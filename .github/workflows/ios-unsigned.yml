@@ -211,6 +211,26 @@ jobs:
           restore-keys: |
             bazel-${{ runner.os }}-
 
+      # 临时诊断：L3 里 XibCompile 报 "iOS 18.0 Platform Not Installed"，
+      # 先确认 ibtool 实际来自哪个 Xcode、SDK 版本是否与 --apple_sdk_version 匹配。
+      - name: Diagnose Xcode/ibtool
+        shell: bash
+        run: |
+          xcode-select -p || true
+          ls -1 /Applications | grep -i xcode || true
+          for X in /Applications/Xcode*.app; do
+            echo "== ${X}"
+            readlink -f "${X}" || true
+            ls "${X}/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs" 2>&1 || true
+          done
+          echo "DEVELOPER_DIR=${DEVELOPER_DIR:-}"
+          xcrun --sdk iphoneos --show-sdk-version || true
+          xcrun -f ibtool || true
+          "$(xcrun -f ibtool)" --version || true
+          "$(xcrun -f ibtool)" --compile /tmp/LaunchScreen.nib \
+            --minimum-deployment-target 12.0 --target-device iphone --target-device ipad \
+            Telegram/Telegram-iOS/Base.lproj/LaunchScreen.xib 2>&1 | head -12 || true
+
       - name: Prepare build configuration
         shell: bash
         env:
