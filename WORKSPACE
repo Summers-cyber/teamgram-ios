@@ -7,6 +7,15 @@ http_archive(
     url = "https://github.com/bazel-contrib/bazel_features/archive/refs/tags/v1.4.1.tar.gz",
 )
 
+# 预声明 bazel_skylib，走 GitHub archive（带 .tar.gz 后缀）而非 releases CDN，
+# 避免 rules_* 依赖里 GitHub release 资产的 504；后续 _maybe 声明会因已存在而跳过。
+http_archive(
+    name = "bazel_skylib",
+    sha256 = "de9d2cedea7103d20c93a5cc7763099728206bd5088342d0009315913a592cc0",
+    strip_prefix = "bazel-skylib-1.4.2",
+    url = "https://github.com/bazelbuild/bazel-skylib/archive/refs/tags/1.4.2.tar.gz",
+)
+
 local_repository(
     name = "rules_xcodeproj",
     path = "build-system/bazel-rules/rules_xcodeproj",
