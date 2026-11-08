@@ -519,10 +519,11 @@ XCODE16_COMPAT_FILES = (
     "submodules/MtProtoKit/Sources/PingFoundation.h",
     "submodules/MtProtoKit/Sources/PingFoundation.m",
 )
+XCODE16_ENCODE_FILE = "submodules/Postbox/Sources/Utils/Encoder/AdaptedPostboxUnkeyedEncodingContainer.swift"
 
 
 def patch_xcode16_compat(repo_root):
-    """Xcode 16 的 Darwin 模块不再隐式暴露 sa_family_t，等价改用 uint8_t。"""
+    """Xcode 16 工具链的两处兼容改动：sa_family_t 不再隐式可见；Swift 6 要求 Data 编码方法私有化。"""
     changed = []
     for relative in XCODE16_COMPAT_FILES:
         path = os.path.join(repo_root, relative)
@@ -534,6 +535,19 @@ def patch_xcode16_compat(repo_root):
         with open(path, "w", encoding="utf-8", newline="\n") as handle:
             handle.write(text)
         changed.append({"file": relative, "count": count})
+
+    path = os.path.join(repo_root, XCODE16_ENCODE_FILE)
+    with open(path, "r", encoding="utf-8") as handle:
+        text = handle.read()
+    old = "    func encode(_ value: Data) throws {"
+    new = "    private func encode(_ value: Data) throws {"
+    if old in text:
+        if text.count(old) != 1:
+            raise RuntimeError("Data 编码方法 %d 处，预期 1 处" % text.count(old))
+        text = text.replace(old, new, 1)
+        with open(path, "w", encoding="utf-8", newline="\n") as handle:
+            handle.write(text)
+        changed.append({"file": XCODE16_ENCODE_FILE, "count": 1})
     return changed if changed else "skipped"
 
 
