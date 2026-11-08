@@ -529,7 +529,8 @@ def patch_xcode16_compat(repo_root):
     anchor = "#import <Foundation/Foundation.h>\n"
     if text.count(anchor) != 1:
         raise RuntimeError("PingFoundation.h 中 Foundation 导入 %d 处，预期 1 处" % text.count(anchor))
-    text = text.replace(anchor, anchor + "\n" + XCODE16_COMPAT_INCLUDE + "\n", 1)
+    # 必须放在 Foundation 之前：模块化编译下先引入 sys/types 才能让 sa_family_t 可见
+    text = XCODE16_COMPAT_INCLUDE + "\n\n" + text
     with open(path, "w", encoding="utf-8", newline="\n") as handle:
         handle.write(text)
     return "patched"
