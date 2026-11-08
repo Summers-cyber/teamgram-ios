@@ -515,6 +515,26 @@ def ensure_feature_flags_file(repo_root):
     return True
 
 
+XCODE16_COMPAT_FILE = "submodules/MtProtoKit/Sources/PingFoundation.h"
+XCODE16_COMPAT_INCLUDE = "#include <sys/types.h>"
+
+
+def patch_xcode16_compat(repo_root):
+    """Xcode 16 SDK 里 sa_family_t 必须先通过 sys/types 模块可见，否则 MtProtoKit 编译失败。"""
+    path = os.path.join(repo_root, XCODE16_COMPAT_FILE)
+    with open(path, "r", encoding="utf-8") as handle:
+        text = handle.read()
+    if XCODE16_COMPAT_INCLUDE in text:
+        return "skipped"
+    anchor = "#import <Foundation/Foundation.h>\n"
+    if text.count(anchor) != 1:
+        raise RuntimeError("PingFoundation.h 中 Foundation 导入 %d 处，预期 1 处" % text.count(anchor))
+    text = text.replace(anchor, anchor + "\n" + XCODE16_COMPAT_INCLUDE + "\n", 1)
+    with open(path, "w", encoding="utf-8", newline="\n") as handle:
+        handle.write(text)
+    return "patched"
+
+
 def patch_feature_flags(repo_root, features):
     """把 config 的 features 段写进 TelegramCore 的总开关，默认全开（缺字段不关）。"""
     path = os.path.join(repo_root, FEATURE_FLAGS_FILE)
@@ -601,6 +621,7 @@ def main():
     if args.patch_sources:
         patched = {}
         patched["dc"] = patch_network(args.repo_root, config["dc"])
+        patched["xcode16_compat"] = patch_xcode16_compat(args.repo_root)
         patched["name"] = patch_display_name(args.repo_root, config["app_name"])
         patched["schemes"] = patch_url_schemes(args.repo_root, config["url_schemes"])
         patched["feature_flags_file"] = "created" if ensure_feature_flags_file(args.repo_root) else "exists"
