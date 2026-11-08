@@ -1,4 +1,4 @@
-﻿name: iOS unsigned build
+name: iOS unsigned build
 
 # 三级试跑，按代价从低到高逐级验证，避免一次失败就烧掉几十分钟 runner：
 #   L1 probe   只校验环境与工程完整性（不含 checkout 目标 < 1 分钟，不下载依赖、不编译）
