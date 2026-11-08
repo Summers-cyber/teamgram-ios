@@ -250,6 +250,13 @@ jobs:
             --build-config-out build-system/teamgram-configuration.json \
             --resolved-out build/teamgram-resolved.json
 
+      # 子模块里部分脚本在 git 中是 100644（上游 fork 丢了执行位），
+      # ffmpeg genrule 会直接 `Permission denied`，这里统一补齐执行位。
+      - name: Fix script permissions
+        shell: bash
+        run: |
+          find submodules Telegram build-system tools -name '*.sh' -type f -exec chmod +x {} +
+
       - name: Build (Bazel, fake signing)
         shell: bash
         run: |
