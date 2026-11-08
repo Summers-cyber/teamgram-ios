@@ -1,0 +1,291 @@
+name: iOS unsigned build
+
+# 三级试跑，按代价从低到高逐级验证，避免一次失败就烧掉几十分钟 runner：
+#   L1 probe   只校验环境与工程完整性（不含 checkout 目标 < 1 分钟，不下载依赖、不编译）
+#   L2 prepare 拉 submodule、选 Xcode、下载 Bazel、生成构建配置（首次约 3-8 分钟）
+#   L3 build   完整 Bazel 构建 + 剥离签名 + 产出未签名 IPA / xcarchive（首次约 40-90 分钟）
+#
+# 触发方式：
+#   1. 手动：Actions -> "iOS unsigned build" -> Run workflow，用 stage 选择跑到第几级
+#      - probe   只跑 L1（默认，最省时间）
+#      - prepare 跑 L1 + L2，不编译
+#      - build   跑 L1 + L2 + L3，出产物
+#   2. 推送 ios-* 标签：git tag ios-10.12.0 && git push origin ios-10.12.0 -> 跑完整三级
+#
+# 产物（stage=build 时）：
+#   artifacts/Teamgram-unsigned.ipa      已剥离 profile / _CodeSignature / Mach-O 签名
+#   artifacts/<AppName>.xcarchive.zip    由 .app + dSYM 组装
+#   artifacts/dSYMs.zip
+#   artifacts/SHA256SUMS.txt
+#
+# 成本：公开仓库使用 GitHub 托管的 macOS runner 不消耗免费分钟，成本为 0；
+#       私有仓库 macOS runner 按 10 倍分钟计费。
+
+on:
+  workflow_dispatch:
+    inputs:
+      stage:
+        description: "跑到第几级（probe=仅环境校验，prepare=校验+准备，build=完整构建）"
+        type: choice
+        options:
+          - probe
+          - prepare
+          - build
+        default: probe
+      final_bundle_id:
+        description: "交付给签名方使用的 bundle id（会写进产物 Info.plist）"
+        required: false
+        default: "com.teamgram.messenger"
+      app_name:
+        description: "桌面显示名"
+        required: false
+        default: "Teamgram"
+      dc_host:
+        description: "DC 地址（留空则用 Secret TEAMGRAM_DC_IP；两者都空则保留仓库占位值）"
+        required: false
+        default: ""
+      dc_port:
+        description: "DC 端口（留空则用 Secret TEAMGRAM_DC_PORT）"
+        required: false
+        default: ""
+  push:
+    tags:
+      - "ios-*"
+  # push:
+  #   branches: [main]
+  #   paths:
+  #     - ".github/workflows/ios-unsigned.yml"
+  #     - "config/**"
+  #     - "tools/ios/**"
+  #     - "Telegram/**"
+  #     - "submodules/TelegramCore/**"
+  #     - "submodules/MtProtoKit/**"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-unsigned-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Bazel 不读取 CODE_SIGNING_ALLOWED；这里保留以明确"不签名"意图，
+  # 真正的未签名化由 tools/ios/make-unsigned-artifacts.sh 在构建后剥离假签名完成。
+  CODE_SIGNING_ALLOWED: "NO"
+  CODE_SIGNING_REQUIRED: "NO"
+  BUILD_NUMBER: ${{ github.run_number }}
+
+jobs:
+  # ---------------------------------------------------------------- L1 probe
+  probe:
+    name: "L1 probe: 环境校验"
+    runs-on: macos-latest
+    timeout-minutes: 10
+    steps:
+      # 不拉 submodule：probe 只需要 .gitmodules 与 gitlink 信息，几十秒内完成。
+      - name: Checkout (no submodules)
+        uses: actions/checkout@v4
+        with:
+          submodules: false
+          fetch-depth: 1
+
+      - name: Probe
+        shell: bash
+        run: bash tools/ios/probe.sh
+
+  # -------------------------------------------------------------- L2 prepare
+  prepare:
+    name: "L2 prepare: 依赖与工具链"
+    needs: probe
+    if: github.event_name == 'push' || inputs.stage == 'prepare' || inputs.stage == 'build'
+    runs-on: macos-latest
+    timeout-minutes: 90
+    env:
+      BAZEL_CACHE_DIR: ${{ github.workspace }}/build/bazel-cache
+    steps:
+      - name: Checkout (with submodules)
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 1
+
+      # ZIP 来源或 gitlink 为空时按固定提交号补拉；已就绪的目录会跳过。
+      - name: Ensure submodules
+        shell: bash
+        run: bash tools/ios/restore-submodules.sh
+
+      - name: Select Xcode
+        shell: bash
+        run: bash tools/ios/select-xcode.sh
+
+      # 缓存 Bazel 本体（build-input/bazel-*) 与 disk cache，键包含 versions.json 与 lock 文件。
+      - name: Restore build cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            build-input
+            build/bazel-cache
+          key: bazel-${{ runner.os }}-${{ hashFiles('versions.json', 'MODULE.bazel.lock') }}
+          restore-keys: |
+            bazel-${{ runner.os }}-
+
+      - name: Download Bazel
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "${BAZEL_CACHE_DIR}"
+          BAZEL_BIN="$(python3 -c "import sys;sys.path.insert(0,'build-system/Make');from BazelLocation import locate_bazel;print(locate_bazel('.'))")"
+          echo "bazel: ${BAZEL_BIN}"
+          "${BAZEL_BIN}" --version
+
+      - name: Prepare build configuration
+        shell: bash
+        env:
+          TEAMGRAM_API_ID: ${{ secrets.TEAMGRAM_API_ID }}
+          TEAMGRAM_API_HASH: ${{ secrets.TEAMGRAM_API_HASH }}
+          TEAMGRAM_DC_IP: ${{ inputs.dc_host || secrets.TEAMGRAM_DC_IP }}
+          TEAMGRAM_DC_PORT: ${{ inputs.dc_port || secrets.TEAMGRAM_DC_PORT }}
+          TEAMGRAM_FINAL_BUNDLE_ID: ${{ inputs.final_bundle_id }}
+          TEAMGRAM_APP_NAME: ${{ inputs.app_name }}
+        run: |
+          set -euo pipefail
+          python3 tools/ios/apply-config.py \
+            --base config/teamgram-ios.json \
+            --local config/teamgram-ios.local.json \
+            --env \
+            --patch-sources \
+            --build-config-out build-system/teamgram-configuration.json \
+            --resolved-out build/teamgram-resolved.json
+
+      - name: Validate generated configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          required = ["bundle_id", "api_id", "api_hash", "team_id", "app_center_id",
+                      "is_internal_build", "is_appstore_build", "appstore_id",
+                      "app_specific_url_scheme", "premium_iap_product_id",
+                      "enable_siri", "enable_icloud"]
+          config = json.load(open("build-system/teamgram-configuration.json"))
+          missing = [key for key in required if key not in config]
+          if missing:
+              raise SystemExit("[FAIL] 构建配置缺少字段: %s" % ", ".join(missing))
+          print("[ ok ] 构建配置字段齐全: bundle_id=%s team_id=%s" % (config["bundle_id"], config["team_id"]))
+          if config["bundle_id"] != "ph.telegra.Telegraph":
+              print("[warn] bundle_id 与假 profile 的 ph.telegra.Telegraph 不一致，L3 可能找不到 profile")
+          PY
+
+  # ---------------------------------------------------------------- L3 build
+  build:
+    name: "L3 build: 未签名 IPA + xcarchive"
+    needs: prepare
+    if: github.event_name == 'push' || inputs.stage == 'build'
+    runs-on: macos-latest
+    timeout-minutes: 355
+    env:
+      BAZEL_CACHE_DIR: ${{ github.workspace }}/build/bazel-cache
+    steps:
+      - name: Checkout (with submodules)
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 1
+
+      - name: Ensure submodules
+        shell: bash
+        run: bash tools/ios/restore-submodules.sh
+
+      - name: Select Xcode
+        shell: bash
+        run: bash tools/ios/select-xcode.sh
+
+      - name: Restore build cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            build-input
+            build/bazel-cache
+          key: bazel-${{ runner.os }}-${{ hashFiles('versions.json', 'MODULE.bazel.lock') }}
+          restore-keys: |
+            bazel-${{ runner.os }}-
+
+      - name: Prepare build configuration
+        shell: bash
+        env:
+          TEAMGRAM_API_ID: ${{ secrets.TEAMGRAM_API_ID }}
+          TEAMGRAM_API_HASH: ${{ secrets.TEAMGRAM_API_HASH }}
+          TEAMGRAM_DC_IP: ${{ inputs.dc_host || secrets.TEAMGRAM_DC_IP }}
+          TEAMGRAM_DC_PORT: ${{ inputs.dc_port || secrets.TEAMGRAM_DC_PORT }}
+          TEAMGRAM_FINAL_BUNDLE_ID: ${{ inputs.final_bundle_id }}
+          TEAMGRAM_APP_NAME: ${{ inputs.app_name }}
+        run: |
+          set -euo pipefail
+          python3 tools/ios/apply-config.py \
+            --base config/teamgram-ios.json \
+            --local config/teamgram-ios.local.json \
+            --env \
+            --patch-sources \
+            --build-config-out build-system/teamgram-configuration.json \
+            --resolved-out build/teamgram-resolved.json
+
+      - name: Build (Bazel, fake signing)
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p build-output "${BAZEL_CACHE_DIR}"
+          python3 build-system/Make/Make.py \
+            --cacheDir="${BAZEL_CACHE_DIR}" \
+            --overrideXcodeVersion \
+            build \
+            --configurationPath=build-system/teamgram-configuration.json \
+            --codesigningInformationPath=build-system/fake-codesigning \
+            --configuration=release_arm64 \
+            --buildNumber="${BUILD_NUMBER}" \
+            --outputBuildArtifactsPath=build-output
+
+      - name: Make unsigned IPA and xcarchive
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Make.py 把 dSYM 打成 Telegram.DSYMs.zip，内部结构是 ./DSYMs/*.dSYM
+          if [ -f build-output/Telegram.DSYMs.zip ]; then
+            unzip -q -o build-output/Telegram.DSYMs.zip -d build-output
+          fi
+          bash tools/ios/make-unsigned-artifacts.sh \
+            --ipa build-output/Telegram.ipa \
+            --out artifacts \
+            --resolved build/teamgram-resolved.json \
+            --dsym-dir build-output/DSYMs
+
+      - name: Checksums
+        shell: bash
+        run: |
+          cd artifacts
+          shasum -a 256 * > SHA256SUMS.txt || true
+          cat SHA256SUMS.txt
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: teamgram-ios-unsigned-${{ github.run_number }}
+          path: |
+            artifacts/Teamgram-unsigned.ipa
+            artifacts/*.xcarchive.zip
+            artifacts/dSYMs.zip
+            artifacts/SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Summary
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "## L3 build"
+            echo ""
+            echo "- run: #${{ github.run_number }}"
+            echo "- Xcode: ${XCODE_VERSION:-unknown}"
+            echo "- 产物目录: artifacts/"
+            echo "- 未签名 IPA 与 .xcarchive 由 Bazel 产物后处理得到；未经真机安装验证。"
+          } >> "${GITHUB_STEP_SUMMARY}"

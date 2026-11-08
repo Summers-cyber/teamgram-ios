@@ -1,0 +1,13 @@
+# path|repo|commit
+# 与 .gitmodules 一致，提交号取自上游 teamgram/teamgram-ios@074a9be35d7fdc4d2402c5f9a69bb8c7cf0e0bb1
+submodules/rlottie/rlottie|teamgram/rlottie|67f103bc8b625f2a4a9e94f1d8c7bd84c5a08d1d
+submodules/TgVoip/libtgvoip|telegramdesktop/libtgvoip|37d98e984fd6fa389262307db826d52ab86c8241
+submodules/TgVoipWebrtc/tgcalls|teamgram/tgcalls|814089b59311c0d59e22eb72e6cd070fbfbeb1d7
+build-system/bazel-rules/rules_apple|ali-fareed/rules_apple|345b71fc226d79abfe180b27b7f8d711aa398bbd
+build-system/bazel-rules/rules_swift|bazelbuild/rules_swift|72347ab6cb613b36039d43a071ac67f63f4de248
+build-system/bazel-rules/apple_support|bazelbuild/apple_support|cf271a330b08a3bbd8ad61241d03787683d5a1c5
+build-system/bazel-rules/rules_xcodeproj|MobileNativeFoundation/rules_xcodeproj|77e00ae3fd2d7f6fae3790420bc95c8f7abb6f7b
+build-system/tulsi|bazelbuild/tulsi|a0bf60e1645869c6452c9f3b128362d433764f19
+third-party/libvpx/libvpx|webmproject/libvpx|e7bfd8b6c230a6824e7fd1efa2378a7322986128
+third-party/webrtc/webrtc|ali-fareed/webrtc|e3dfe44d1aea15a1aabded19d71884412e772245
+third-party/libx264/x264|mirror/x264|5585eafe31c2299163dcb206e05e18be7dd93098

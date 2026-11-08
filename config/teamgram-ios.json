@@ -1,0 +1,28 @@
+{
+  "_comment": "公共仓库默认配置。真实 api_hash / 服务器 IP 不要写进本文件，放 config/teamgram-ios.local.json 或 GitHub Actions Secrets。",
+  "app_name": "Teamgram",
+  "build_bundle_id": "ph.telegra.Telegraph",
+  "final_bundle_id": "com.teamgram.messenger",
+  "build_team_id": "C67CF9S4VU",
+  "url_schemes": ["telegram", "tg"],
+  "api_id": 0,
+  "api_hash": "",
+  "app_center_id": "0",
+  "dc": {
+    "ip": "127.0.0.1",
+    "port": 10443
+  },
+  "rsa_public_key_pem": "",
+  "build": {
+    "configuration": "release_arm64",
+    "extensions": true,
+    "strip_debug_symbols": false
+  },
+  "features": {
+    "stories": false,
+    "private_calls": false,
+    "group_calls_live": false,
+    "premium_wallet_business": false,
+    "channels": false
+  }
+}
