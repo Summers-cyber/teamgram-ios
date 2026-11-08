@@ -1,4 +1,4 @@
-name: iOS unsigned build
+﻿name: iOS unsigned build
 
 # 三级试跑，按代价从低到高逐级验证，避免一次失败就烧掉几十分钟 runner：
 #   L1 probe   只校验环境与工程完整性（不含 checkout 目标 < 1 分钟，不下载依赖、不编译）
@@ -181,8 +181,8 @@ jobs:
     name: "L3 build: 未签名 IPA + xcarchive"
     needs: prepare
     if: github.event_name == 'push' || inputs.stage == 'build'
-    # macos-14 上最老的可用 Xcode 是 15.4，可避开 Xcode 26 + Bazel 7.1 的 wrapped_clang LC_UUID 问题
-    runs-on: macos-14
+    # macos-14 标签当前不可用（L3 直接被取消），改用 macos-15；select-xcode.sh 会自动挑 >=15.2 的最老 Xcode
+    runs-on: macos-15
     timeout-minutes: 355
     env:
       BAZEL_CACHE_DIR: ${{ github.workspace }}/build/bazel-cache
