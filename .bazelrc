@@ -1,4 +1,7 @@
 build --action_env=ZERO_AR_DATE=1
+# ibtool/xctoolrunner 等工具需要与 xcode-select 一致的 DEVELOPER_DIR，
+# 否则会回落到 /Applications/Xcode.app，与 --ios_sdk_version=18.0 不匹配
+build --action_env=DEVELOPER_DIR
 
 build --apple_platform_type=ios
 build --enable_platform_specific_config
