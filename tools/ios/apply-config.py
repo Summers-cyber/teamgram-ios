@@ -638,6 +638,34 @@ def patch_xcode16_compat(repo_root):
     return changed if changed else "skipped"
 
 
+def patch_icon_catalog(repo_root):
+    """Xcode 16 的 actool 把「76x76@1x 只适用于 iOS 10 之前的 iPad」当错误。
+
+    本工程按 iPhone-only（TARGETED_DEVICE_FAMILY=1）打包，iPad 专有的 76x76@1x 声明
+    没有意义，直接删掉这条，其余 iPad 尺寸（2x / 83.5pt）保留。
+    """
+    relative = "Telegram/Telegram-iOS/DefaultAppIcon.xcassets/AppIconLLC.appiconset/Contents.json"
+    path = os.path.join(repo_root, relative)
+    with open(path, "r", encoding="utf-8") as handle:
+        text = handle.read()
+    old = (
+        '    {\n'
+        '      "size" : "76x76",\n'
+        '      "idiom" : "ipad",\n'
+        '      "filename" : "BlueIconIpad.png",\n'
+        '      "scale" : "1x"\n'
+        '    },\n'
+    )
+    if '"BlueIconIpad.png"' not in text:
+        return "skipped"
+    if text.count(old) != 1:
+        raise RuntimeError("%s 中 76x76@1x 锚点 %d 处，预期 1 处" % (relative, text.count(old)))
+    text = text.replace(old, "", 1)
+    with open(path, "w", encoding="utf-8", newline="\n") as handle:
+        handle.write(text)
+    return [{"file": relative, "count": 1}]
+
+
 def patch_feature_flags(repo_root, features):
     """把 config 的 features 段写进 TelegramCore 的总开关，默认全开（缺字段不关）。"""
     path = os.path.join(repo_root, FEATURE_FLAGS_FILE)
@@ -726,6 +754,7 @@ def main():
         patched["dc"] = patch_network(args.repo_root, config["dc"])
         patched["xcode16_compat"] = patch_xcode16_compat(args.repo_root)
         patched["swift6_warnings"] = patch_swift6_warnings(args.repo_root)
+        patched["icon_catalog"] = patch_icon_catalog(args.repo_root)
         patched["name"] = patch_display_name(args.repo_root, config["app_name"])
         patched["schemes"] = patch_url_schemes(args.repo_root, config["url_schemes"])
         patched["feature_flags_file"] = "created" if ensure_feature_flags_file(args.repo_root) else "exists"
