@@ -3,6 +3,9 @@ build --action_env=ZERO_AR_DATE=1
 # 否则会回落到 /Applications/Xcode.app，与 --ios_sdk_version=18.0 不匹配
 build --action_env=DEVELOPER_DIR
 
+# GitHub releases 资产在本 CI 里间歇 504，统一重写到 mirror.bazel.build（同字节）。
+build --experimental_downloader_config=build-system/downloader.cfg
+
 build --apple_platform_type=ios
 build --enable_platform_specific_config
 build --apple_crosstool_top=@local_config_apple_cc//:toolchain
