@@ -520,6 +520,10 @@ XCODE16_COMPAT_FILES = (
     "submodules/MtProtoKit/Sources/PingFoundation.m",
 )
 XCODE16_ENCODE_FILE = "submodules/Postbox/Sources/Utils/Encoder/AdaptedPostboxUnkeyedEncodingContainer.swift"
+XCODE16_RETROACTIVE = (
+    ("submodules/Display/Source/KeyShortcut.swift", "extension UIKeyModifierFlags: Hashable {", "extension UIKeyModifierFlags: @retroactive Hashable {"),
+    ("submodules/LocationUI/Sources/LocationUtils.swift", "extension CLLocationCoordinate2D: Equatable {", "extension CLLocationCoordinate2D: @retroactive Equatable {"),
+)
 
 
 def patch_xcode16_compat(repo_root):
@@ -548,6 +552,19 @@ def patch_xcode16_compat(repo_root):
         with open(path, "w", encoding="utf-8", newline="\n") as handle:
             handle.write(text)
         changed.append({"file": XCODE16_ENCODE_FILE, "count": 1})
+
+    for relative, old, new in XCODE16_RETROACTIVE:
+        path = os.path.join(repo_root, relative)
+        with open(path, "r", encoding="utf-8") as handle:
+            text = handle.read()
+        if new in text:
+            continue
+        if text.count(old) != 1:
+            raise RuntimeError("%s 中 retroactive 锚点 %d 处，预期 1 处" % (relative, text.count(old)))
+        text = text.replace(old, new, 1)
+        with open(path, "w", encoding="utf-8", newline="\n") as handle:
+            handle.write(text)
+        changed.append({"file": relative, "count": 1})
     return changed if changed else "skipped"
 
 
