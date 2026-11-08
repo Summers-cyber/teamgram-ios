@@ -29,6 +29,18 @@ http_archive(
     ],
 )
 
+# nlohmann/json 的 include.zip 同样在 releases CDN 上 504，改用 mirror（sha256 与上游一致）。
+http_archive(
+    name = "com_github_nlohmann_json",
+    type = "zip",
+    build_file = "@build_bazel_rules_swift//third_party:com_github_nlohmann_json/BUILD.overlay",
+    sha256 = "69cc88207ce91347ea530b227ff0776db82dcb8de6704e1a3d74f4841bc651cf",
+    urls = [
+        "https://mirror.bazel.build/github.com/nlohmann/json/releases/download/v3.6.1/include.zip",
+        "https://github.com/nlohmann/json/releases/download/v3.6.1/include.zip",
+    ],
+)
+
 local_repository(
     name = "rules_xcodeproj",
     path = "build-system/bazel-rules/rules_xcodeproj",
