@@ -525,6 +525,11 @@ XCODE16_RETROACTIVE = (
     ("submodules/LocationUI/Sources/LocationUtils.swift", "extension CLLocationCoordinate2D: Equatable {", "extension CLLocationCoordinate2D: @retroactive Equatable {"),
 )
 
+# Xcode 16 的 Clang 把 C++ VLA 扩展警告也当错误（这些 target 硬编码了 -Werror）
+XCODE16_WERROR_FILES = (
+    "submodules/AsyncDisplayKit/BUILD",
+)
+
 
 def patch_xcode16_compat(repo_root):
     """Xcode 16 工具链的两处兼容改动：sa_family_t 不再隐式可见；Swift 6 要求 Data 编码方法私有化。"""
@@ -561,6 +566,21 @@ def patch_xcode16_compat(repo_root):
             continue
         if text.count(old) != 1:
             raise RuntimeError("%s 中 retroactive 锚点 %d 处，预期 1 处" % (relative, text.count(old)))
+        text = text.replace(old, new, 1)
+        with open(path, "w", encoding="utf-8", newline="\n") as handle:
+            handle.write(text)
+        changed.append({"file": relative, "count": 1})
+
+    for relative in XCODE16_WERROR_FILES:
+        path = os.path.join(repo_root, relative)
+        with open(path, "r", encoding="utf-8") as handle:
+            text = handle.read()
+        if "-Wno-vla-cxx-extension" in text:
+            continue
+        old = '    copts = [\n        "-Werror",\n    ],'
+        new = '    copts = [\n        "-Werror",\n        "-Wno-vla-cxx-extension",\n    ],'
+        if text.count(old) != 1:
+            raise RuntimeError("%s 中 -Werror copts 锚点 %d 处，预期 1 处" % (relative, text.count(old)))
         text = text.replace(old, new, 1)
         with open(path, "w", encoding="utf-8", newline="\n") as handle:
             handle.write(text)
