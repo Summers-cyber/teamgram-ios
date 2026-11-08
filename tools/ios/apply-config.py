@@ -530,6 +530,56 @@ XCODE16_WERROR_FILES = (
     "submodules/AsyncDisplayKit/BUILD",
 )
 
+# Swift 6 升级诊断在 `-warnings-as-errors` 的 target（GraphCore 等）里直接变成错误：
+# NumberFormatter 等 Foundation 类型已是 @unchecked Sendable，子类必须重新声明。
+XCODE16_SENDABLE_RESTATE = (
+    (
+        "submodules/GraphCore/Sources/Helpers/ScalesNumberFormatter.swift",
+        "class ScalesNumberFormatter: NumberFormatter {",
+        "class ScalesNumberFormatter: NumberFormatter, @unchecked Sendable {",
+    ),
+    (
+        "submodules/GraphCore/Sources/Helpers/ScalesNumberFormatter.swift",
+        "class TonNumberFormatter: NumberFormatter {",
+        "class TonNumberFormatter: NumberFormatter, @unchecked Sendable {",
+    ),
+)
+
+
+def patch_swift6_warnings(repo_root):
+    """把 -warnings-as-errors target 里的 Swift 6 升级告警一次性清掉。
+
+    `private (set)` 的多余空格是纯格式问题，全仓统一规范；@unchecked Sendable 按锚点补声明。
+    """
+    changed = []
+    for root, _, files in os.walk(os.path.join(repo_root, "submodules")):
+        for name in files:
+            if not name.endswith(".swift"):
+                continue
+            path = os.path.join(root, name)
+            with open(path, "r", encoding="utf-8") as handle:
+                text = handle.read()
+            if "private (set)" not in text:
+                continue
+            text, count = re.subn(r"private \(set\)", "private(set)", text)
+            with open(path, "w", encoding="utf-8", newline="\n") as handle:
+                handle.write(text)
+            changed.append({"file": os.path.relpath(path, repo_root), "count": count})
+
+    for relative, old, new in XCODE16_SENDABLE_RESTATE:
+        path = os.path.join(repo_root, relative)
+        with open(path, "r", encoding="utf-8") as handle:
+            text = handle.read()
+        if new in text:
+            continue
+        if text.count(old) != 1:
+            raise RuntimeError("%s 中 Sendable 锚点 %d 处，预期 1 处" % (relative, text.count(old)))
+        text = text.replace(old, new, 1)
+        with open(path, "w", encoding="utf-8", newline="\n") as handle:
+            handle.write(text)
+        changed.append({"file": relative, "count": 1})
+    return changed if changed else "skipped"
+
 
 def patch_xcode16_compat(repo_root):
     """Xcode 16 工具链的两处兼容改动：sa_family_t 不再隐式可见；Swift 6 要求 Data 编码方法私有化。"""
@@ -675,6 +725,7 @@ def main():
         patched = {}
         patched["dc"] = patch_network(args.repo_root, config["dc"])
         patched["xcode16_compat"] = patch_xcode16_compat(args.repo_root)
+        patched["swift6_warnings"] = patch_swift6_warnings(args.repo_root)
         patched["name"] = patch_display_name(args.repo_root, config["app_name"])
         patched["schemes"] = patch_url_schemes(args.repo_root, config["url_schemes"])
         patched["feature_flags_file"] = "created" if ensure_feature_flags_file(args.repo_root) else "exists"
